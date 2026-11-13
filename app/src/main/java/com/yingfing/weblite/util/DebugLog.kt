@@ -20,7 +20,7 @@ import java.util.Locale
 object DebugLog {
     private const val TAG = "WebLite"
     private const val MAX_BYTES = 2L * 1024 * 1024
-    private const val fmt = SimpleDateFormat("MM-dd HH:mm:ss.SSS", Locale.CHINA)
+    private val fmt = SimpleDateFormat("MM-dd HH:mm:ss.SSS", Locale.CHINA)
 
     @Volatile private var logFile: File? = null
     @Volatile var enabled: Boolean = true
@@ -31,7 +31,7 @@ object DebugLog {
             File(context.getExternalFilesDir(null) ?: context.filesDir, "logs").apply { mkdirs() }
                 .let { File(it, "weblite.log") }
         }.getOrNull()
-        i("---- 会话开始 ---- ver=${BuildConfig.VERSION_NAME} sdk=${Build.VERSION.SDK_INT} 设备=${Build.MODEL}")
+        i("---- 会话开始 ---- sdk=${Build.VERSION.SDK_INT} 设备=${Build.MODEL}")
     }
 
     fun i(msg: String) = log("INFO", msg)
