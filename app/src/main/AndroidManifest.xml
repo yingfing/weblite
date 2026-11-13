@@ -4,6 +4,11 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
+    <!-- TV/手机通用：都不是必须 -->
+    <uses-feature android:name="android.software.leanback" android:required="false" />
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+    <uses-feature android:name="android.hardware.gamepad" android:required="false" />
+
     <!-- 允许部分老网站走 http -->
     <application
         android:name=".WebLiteApp"
@@ -14,7 +19,7 @@
         android:hardwareAccelerated="true"
         android:allowBackup="true">
 
-        <!-- 手机/平板 -->
+        <!-- 手机 / 电视 共用一个入口 -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -23,8 +28,9 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
-            <!-- 处理网页链接分享/打开 -->
+            <!-- 处理外部网页链接（分享/默认浏览器） -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -33,18 +39,5 @@
                 <data android:scheme="https" />
             </intent-filter>
         </activity>
-
-        <!-- 电视端入口：允许在 TV 桌面出现 -->
-        <activity
-            android:name=".MainActivity"
-            android:enabled="true">
-            <intent-filter>
-                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
-            </intent-filter>
-        </activity>
-
-        <uses-feature android:name="android.software.leanback" android:required="false" />
-        <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
-        <uses-feature android:name="android.hardware.gamepad" android:required="false" />
     </application>
 </manifest>
