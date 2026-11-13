@@ -68,4 +68,9 @@ class Settings(context: Context) {
     var fancyEffects: Boolean
         get() = p.getBoolean("fancy", false)
         set(v) = p.edit().putBoolean("fancy", v).apply()
+
+    /** 调试日志写入 sdcard，默认开 */
+    var debugLog: Boolean
+        get() = p.getBoolean("debug_log", true)
+        set(v) = p.edit().putBoolean("debug_log", v).apply()
 }

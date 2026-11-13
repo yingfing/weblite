@@ -20,6 +20,12 @@ class WebLiteApp : Application() {
                 .build()
         )
         settings = Settings(this)
+        com.yingfing.weblite.util.DebugLog.init(this, settings.debugLog)
+        // 未捕获异常也落盘，电视上崩溃后能拉到现场
+        Thread.setDefaultUncaughtExceptionHandler { t, e ->
+            com.yingfing.weblite.util.DebugLog.e("未捕获崩溃 @${t.name}", e)
+            android.os.Process.killProcess(android.os.Process.myPid())
+        }
     }
 
     companion object {

@@ -40,10 +40,14 @@ class Tab(val id: Int) {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                 val u = request.url
                 // 非网页协议交给系统（tel:/mailto:/intent:…）
-                if (u.scheme !in setOf("http", "https", "file", "about", "data")) return true
+                if (u.scheme !in setOf("http", "https", "file", "about", "data")) {
+                    com.yingfing.weblite.util.DebugLog.w("忽略非网页协议 $u")
+                    return true
+                }
                 return false
             }
             override fun onPageStarted(view: WebView, u: String, favicon: Bitmap?) {
+                com.yingfing.weblite.util.DebugLog.i("[T${this@Tab.id}] 开始加载 $u")
                 this@Tab.url.value = u
                 onLoad(this@Tab)
             }
@@ -51,13 +55,25 @@ class Tab(val id: Int) {
                 this@Tab.title.value = view.title ?: u
                 this@Tab.url.value = u
                 refreshNav(view)
+                com.yingfing.weblite.util.DebugLog.i("[T${this@Tab.id}] 加载完成 $u（标题=${view.title}）")
                 onLoad(this@Tab)
+            }
+            override fun onReceivedError(view: WebView, request: WebResourceRequest, error: android.webkit.WebResourceError) {
+                if (request.isForMainFrame) {
+                    com.yingfing.weblite.util.DebugLog.e("[T${this@Tab.id}] 加载失败 ${request.url} code=${error.errorCode} ${error.description}")
+                }
             }
         }
         webChromeClient = object : WebChromeClient() {
             override fun onProgressChanged(view: WebView, newProgress: Int) {
                 this@Tab.progress.value = if (newProgress >= 100) -1 else newProgress
                 refreshNav(view)
+            }
+            override fun onConsoleMessage(consoleMessage: android.webkit.ConsoleMessage?): Boolean {
+                consoleMessage?.let {
+                    com.yingfing.weblite.util.DebugLog.i("[T${this@Tab.id} console] ${it.message()} (${it.sourceId()}:${it.lineNumber()})")
+                }
+                return true
             }
         }
     }
@@ -68,6 +84,7 @@ class Tab(val id: Int) {
     }
 
     fun load(target: String) {
+        com.yingfing.weblite.util.DebugLog.i("[T$id] 请求加载 $target")
         val w = web
         if (w == null) { pendingUrl = target; url.value = target } else w.loadUrl(target)
     }
@@ -90,10 +107,12 @@ object TabManager {
         val t = Tab(++seq).apply { pendingUrl = startUrl }
         tabs.value = tabs.value + t
         active.value = t
+        com.yingfing.weblite.util.DebugLog.i("新开标签 #${t.id} → $startUrl")
         return t
     }
 
     fun close(tab: Tab) {
+        com.yingfing.weblite.util.DebugLog.i("关闭标签 #${tab.id}（${tab.url.value}）")
         tab.destroy()
         val rest = tabs.value - tab
         tabs.value = rest

@@ -114,6 +114,7 @@ fun SettingsScreen(onBack: () -> Unit) {
     var engineIdx by remember { mutableStateOf(settings.engineIndex) }
     var homepage by remember { mutableStateOf(settings.homepage) }
     var fancy by remember { mutableStateOf(settings.fancyEffects) }
+    var debugLog by remember { mutableStateOf(settings.debugLog) }
 
     PageScaffold("设置", onBack) {
         LazyColumn(Modifier.fillMaxSize()) {
@@ -166,6 +167,29 @@ fun SettingsScreen(onBack: () -> Unit) {
                     supportingContent = { Text("动态取色/模糊等视觉效果（电视上默认关闭以省性能，当前版本无此特效，保留开关）") },
                     trailingContent = {
                         Switch(checked = fancy, onCheckedChange = { fancy = it; settings.fancyEffects = it })
+                    },
+                )
+            }
+            item {
+                HorizontalDivider()
+                ListItem(
+                    headlineContent = { Text("调试日志") },
+                    supportingContent = {
+                        Column {
+                            Text("写入存储卡便于排查问题，拉取日志：adb pull ${com.yingfing.weblite.util.DebugLog.path()}")
+                            Text(
+                                "日志路径：/sdcard/Android/data/com.yingfing.weblite/files/logs/weblite.log（超 2MB 自动轮换）",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    },
+                    trailingContent = {
+                        Switch(checked = debugLog, onCheckedChange = {
+                            debugLog = it; settings.debugLog = it
+                            com.yingfing.weblite.util.DebugLog.enabled = it
+                            com.yingfing.weblite.util.DebugLog.i("调试日志 ${if (it) "已开启" else "已关闭"}")
+                        })
                     },
                 )
             }
