@@ -21,7 +21,18 @@ object UrlBox {
     )
     val DEFAULT = ENGINES[0]
 
-    private val SCHEME = Regex("^[a-zA-Z][a-zA-Z0-9+.-]*://.*")
+    private val KNOWN_SCHEMES = setOf(
+        "http", "https", "file", "about", "data", "javascript", "blob", "intent", "ws", "wss",
+    )
+
+    /** 输入以已知协议开头 → 原样返回。 */
+    private fun hasKnownScheme(q: String): Boolean {
+        val i = q.indexOf(':')
+        if (i <= 0) return false
+        val scheme = q.substring(0, i).lowercase()
+        return scheme in KNOWN_SCHEMES && (scheme in setOf("about", "file", "intent") || q.length > i)
+    }
+
     private val LOOKS_LIKE_HOST = Regex(
         """^(localhost(:\d+)?(/.*)?|(\d{1,3}\.){3}\d{1,3}(:\d+)?(/.*)?|[\p{L}0-9-]+(\.[\p{L}0-9-]+)+(:\d+)?(/.*)?)$""",
     )
@@ -29,7 +40,7 @@ object UrlBox {
     fun resolve(input: String, engine: Engine = DEFAULT): String {
         val q = input.trim()
         if (q.isEmpty()) return engine.query("")
-        if (SCHEME.matches(q)) return q
+        if (hasKnownScheme(q)) return q
         if (LOOKS_LIKE_HOST.matches(q)) return "https://$q"
         return engine.query(q)
     }
