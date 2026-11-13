@@ -125,7 +125,7 @@ object HardwareInfo {
         val maxRefresh = modes.maxOfOrNull { it.refreshRate } ?: refresh
         val hdr = runCatching {
             val caps = wm.defaultDisplay.hdrCapabilities
-            caps != null && caps.getTypes().isNotEmpty()
+            caps != null && caps.getSupportedHdrTypes().isNotEmpty()
         }.getOrDefault(false)
         val diag = Math.hypot(metrics.widthPixels.toDouble(), metrics.heightPixels.toDouble()) / metrics.xdpi
         return listOf(
@@ -134,13 +134,8 @@ object HardwareInfo {
             "密度" to "${metrics.densityDpi} dpi（${metrics.density}x）",
             "对角线" to "约 %.1f 英寸".format(diag),
             "HDR 支持" to if (hdr == true) "是" else "否/未声明",
-            "显示器类型" to displayType(wm.defaultDisplay),
         )
     }
-
-    private fun displayType(d: Display): String = runCatching {
-        if (Build.VERSION.SDK_INT >= 30) d.getType().toString() else "TV/内置"
-    }.getOrDefault("未知")
 
     private fun storageRows(): List<Pair<String, String>> {
         val rows = mutableListOf<Pair<String, String>>()
