@@ -1,3 +1,4 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 package com.yingfing.weblite.ui
 
 import androidx.compose.foundation.background
@@ -64,7 +65,7 @@ fun BrowserScreen(
     val db = WebLiteApp.db
     LaunchedEffect(url) {
         if (url.startsWith("http")) {
-            db.historyDao().add(HistoryEntity(url = url, title = title))
+            db.history.add(HistoryEntity(url = url, title = title))
         }
     }
 
@@ -153,7 +154,7 @@ fun BrowserScreen(
                         })
                     ListItem(headlineContent = { Text("收藏此页") }, leadingContent = { Icon(Icons.Filled.Star, null) },
                         modifier = Modifier.clickable {
-                            val dao = db.bookmarkDao()
+                            val dao = db.bookmarks
                             kotlinx.coroutines.MainScope().launch {
                                 if (dao.find(url) == null) dao.add(com.yingfing.weblite.data.BookmarkEntity(url = url, title = title))
                             }
