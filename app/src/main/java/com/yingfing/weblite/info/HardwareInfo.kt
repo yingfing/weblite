@@ -4,11 +4,11 @@ import android.app.ActivityManager
 import android.os.Build
 import android.os.Environment
 import android.os.StatFs
+import android.opengl.EGL14
+import android.opengl.EGLConfig
+import android.opengl.GLES20
 import android.webkit.WebView
 import android.view.Display
-import javax.microedition.khronos.egl.EGL14
-import javax.microedition.khronos.egl.EGLConfig
-import javax.microedition.khronos.opengles.GL10
 
 /**
  * 硬件信息采集：设备 / CPU / GPU / 内存 / 屏幕 / 存储 / WebView 版本。
@@ -26,7 +26,7 @@ object HardwareInfo {
             "品牌" to Build.MANUFACTURER,
             "型号" to Build.MODEL,
             "系统版本" to "Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})",
-            "内核" to System.getProperty("os.version") ?: "未知",
+            "内核" to (System.getProperty("os.version") ?: "未知"),
             "固件版本" to Build.ID,
         ))
 

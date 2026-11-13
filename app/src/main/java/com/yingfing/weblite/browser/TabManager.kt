@@ -44,19 +44,19 @@ class Tab(val id: Int) {
                 return false
             }
             override fun onPageStarted(view: WebView, u: String, favicon: Bitmap?) {
-                url.value = u
+                this@Tab.url.value = u
                 onLoad(this@Tab)
             }
             override fun onPageFinished(view: WebView, u: String) {
-                title.value = view.title ?: u
-                url.value = u
+                this@Tab.title.value = view.title ?: u
+                this@Tab.url.value = u
                 refreshNav(view)
                 onLoad(this@Tab)
             }
         }
         webChromeClient = object : WebChromeClient() {
             override fun onProgressChanged(view: WebView, newProgress: Int) {
-                progress.value = if (newProgress >= 100) -1 else newProgress
+                this@Tab.progress.value = if (newProgress >= 100) -1 else newProgress
                 refreshNav(view)
             }
         }
