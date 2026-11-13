@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- TV 场景：固定深色，不用动态取色 -->
+    <style name="Theme.WebLite" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">#10131A</item>
+        <item name="android:statusBarColor">#10131A</item>
+        <item name="android:navigationBarColor">#10131A</item>
+    </style>
+</resources>

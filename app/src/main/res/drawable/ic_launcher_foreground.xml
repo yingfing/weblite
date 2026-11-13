@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <!-- 一页纸 + 拾取光标，呼应“拾页” -->
+    <path android:fillColor="#FFFFFF"
+        android:pathData="M36,26h26l12,12v44a4,4 0,0 1,-4 4h-34a4,4 0,0 1,-4 -4v-52a4,4 0,0 1,4 -4z"/>
+    <path android:fillColor="#BBD4FF"
+        android:pathData="M62,26l12,12h-12z"/>
+    <path android:fillColor="#1B6EF3"
+        android:pathData="M42,48h24v4h-24zM42,56h24v4h-24zM42,64h16v4h-16z"/>
+</vector>
