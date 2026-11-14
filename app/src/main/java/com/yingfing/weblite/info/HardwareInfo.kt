@@ -121,8 +121,12 @@ object HardwareInfo {
         @Suppress("DEPRECATION")
         wm.defaultDisplay.getRealMetrics(metrics)
         val refresh = wm.defaultDisplay.refreshRate
-        val modes = runCatching { wm.defaultDisplay.supportedModes }.getOrDefault(emptyArray())
-        val maxRefresh = modes.maxOfOrNull { it.refreshRate } ?: refresh
+        // Display.Mode 为 API 23+ 类，低版本不能出现任何直接引用（含泛型/兜底值），
+        // 否则类校验阶段即抛 NoClassDefFoundError（API 22 真机已复现）
+        val maxRefresh: Float = if (Build.VERSION.SDK_INT >= 23) {
+            runCatching { wm.defaultDisplay.supportedModes.maxOfOrNull { it.refreshRate } ?: refresh }
+                .getOrDefault(refresh)
+        } else refresh
         val hdr = runCatching {
             val caps = wm.defaultDisplay.hdrCapabilities
             caps != null && caps.getSupportedHdrTypes().isNotEmpty()
