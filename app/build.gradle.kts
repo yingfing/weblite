@@ -11,7 +11,7 @@ android {
 
     defaultConfig {
         applicationId = "com.yingfing.weblite"
-        minSdk = 26          // TV 常见 Android 8.0+，WebView 也足够新
+        minSdk = 21          // 放宽到 Android 5.0+，兼容老设备（如 8H57_H5 TV 盒）
         targetSdk = 35
         versionCode = 1
         versionName = "0.1.0"
