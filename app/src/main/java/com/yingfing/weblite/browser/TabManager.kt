@@ -35,16 +35,19 @@ class Tab(val id: Int) {
         settings.useWideViewPort = true
         settings.mediaPlaybackRequiresUserGesture = false
         settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+        // target="_blank" 链接：不开多窗口会被 WebView 静默吞掉（点击无反应），必须开启并接管 onCreateWindow
+        settings.setSupportMultipleWindows(true)
+        settings.javaScriptCanOpenWindowsAutomatically = true
 
         webViewClient = object : WebViewClient() {
+            // API 24+ 走这个重载
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
-                val u = request.url
-                // 非网页协议交给系统（tel:/mailto:/intent:…）
-                if (u.scheme !in setOf("http", "https", "file", "about", "data")) {
-                    com.yingfing.weblite.util.DebugLog.w("忽略非网页协议 $u")
-                    return true
-                }
-                return false
+                return filterScheme(request.url.toString())
+            }
+            // API <24 只会回调这个老签名，缺了它老设备上非网页协议拦截失效
+            @Deprecated("Deprecated in Java")
+            override fun shouldOverrideUrlLoading(view: WebView, url: String): Boolean {
+                return filterScheme(url)
             }
             override fun onPageStarted(view: WebView, u: String, favicon: Bitmap?) {
                 com.yingfing.weblite.util.DebugLog.i("[T${this@Tab.id}] 开始加载 $u")
@@ -65,6 +68,17 @@ class Tab(val id: Int) {
             }
         }
         webChromeClient = object : WebChromeClient() {
+            // 接管 target="_blank" / window.open：TV 单窗口场景直接在本页加载目标地址
+            override fun onCreateWindow(view: WebView, isDialog: Boolean, isUserGesture: Boolean, resultMsg: android.os.Message?): Boolean {
+                val target = view.hitTestResult.extra ?: view.url
+                if (target.isNullOrBlank() || !target.startsWith("http")) {
+                    com.yingfing.weblite.util.DebugLog.w("[T${this@Tab.id}] 新窗口请求无法解析目标 $target")
+                    return false
+                }
+                com.yingfing.weblite.util.DebugLog.i("[T${this@Tab.id}] 新窗口 → 本页加载 $target")
+                view.loadUrl(target)
+                return true
+            }
             override fun onProgressChanged(view: WebView, newProgress: Int) {
                 this@Tab.progress.value = if (newProgress >= 100) -1 else newProgress
                 refreshNav(view)
@@ -76,6 +90,16 @@ class Tab(val id: Int) {
                 return true
             }
         }
+    }
+
+    /** 非网页协议（tel:/mailto:/intent:…）交给系统处理 */
+    fun filterScheme(url: String): Boolean {
+        val scheme = android.net.Uri.parse(url).scheme ?: return true
+        if (scheme !in setOf("http", "https", "file", "about", "data")) {
+            com.yingfing.weblite.util.DebugLog.w("忽略非网页协议 $url")
+            return true
+        }
+        return false
     }
 
     fun refreshNav(view: WebView) {
