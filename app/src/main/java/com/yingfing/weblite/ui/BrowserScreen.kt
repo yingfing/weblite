@@ -23,6 +23,7 @@ import com.yingfing.weblite.WebLiteApp
 import com.yingfing.weblite.browser.Tab
 import com.yingfing.weblite.browser.TabManager
 import com.yingfing.weblite.data.HistoryEntity
+import com.yingfing.weblite.download.ChunkDownloader
 import com.yingfing.weblite.util.UrlBox
 import kotlinx.coroutines.launch
 
@@ -45,6 +46,18 @@ fun BrowserScreen(
     var showTabs by remember { mutableStateOf(false) }
     var menuOpen by remember { mutableStateOf(false) }
     var desktopMode by remember { mutableStateOf(false) }
+
+    // ---------- 下载：确认框 + 进度框（TV 无通知栏，进度在 App 内展示） ----------
+    var pendingDl by remember { mutableStateOf<ChunkDownloader.Request?>(null) }
+    var dlProgress by remember { mutableStateOf<ChunkDownloader.Progress?>(null) }
+    var dlName by remember { mutableStateOf("") }
+    var dlDonePath by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+
+    DisposableEffect(Unit) {
+        Tab.onDownload = { req -> dlName = req.suggestedName; pendingDl = req }
+        onDispose { Tab.onDownload = null }
+    }
 
     val url by tab.url.collectAsStateWithLifecycle()
     val title by tab.title.collectAsStateWithLifecycle()
@@ -141,6 +154,85 @@ fun BrowserScreen(
             }
         }
 
+        // ---------- 下载确认 ----------
+        pendingDl?.let { req ->
+            AlertDialog(
+                onDismissRequest = { pendingDl = null },
+                title = { Text("下载文件") },
+                text = {
+                    Column {
+                        Text(req.suggestedName, maxLines = 2, style = MaterialTheme.typography.titleMedium)
+                        Spacer(Modifier.height(6.dp))
+                        Text(UrlBox.hostOf(req.url), maxLines = 2, style = MaterialTheme.typography.bodySmall)
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            if (req.contentLength > 0) "大小：${fmtSize(req.contentLength)}" else "大小：未知",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(onClick = {
+                        pendingDl = null
+                        dlProgress = ChunkDownloader.Progress(0, req.contentLength, 0, 0)
+                        scope.launch {
+                            val path = ChunkDownloader.start(req) { p -> dlProgress = p }
+                            dlDonePath = path ?: dlDonePath
+                        }
+                    }) { Text("下载") }
+                },
+                dismissButton = {
+                    OutlinedButton(onClick = { pendingDl = null }) { Text("取消") }
+                },
+            )
+        }
+
+        // ---------- 下载进度 / 结果 ----------
+        dlProgress?.let { p ->
+            val finishedOk = p.finished && p.error == null
+            AlertDialog(
+                onDismissRequest = { if (!p.finished) { ChunkDownloader.cancel(); dlProgress = null } else dlProgress = null },
+                title = { Text(when {
+                    finishedOk -> "下载完成"
+                    p.error != null -> "下载失败"
+                    else -> "正在下载"
+                }) },
+                text = {
+                    Column {
+                        Text(dlName, maxLines = 1, style = MaterialTheme.typography.titleMedium)
+                        Spacer(Modifier.height(10.dp))
+                        when {
+                            finishedOk -> Text("已保存到 $dlDonePath")
+                            p.error != null -> Text(p.error ?: "未知错误")
+                            else -> {
+                                if (p.total > 0) {
+                                    LinearProgressIndicator(
+                                        progress = { (p.done.toFloat() / p.total).coerceIn(0f, 1f) },
+                                        modifier = Modifier.fillMaxWidth(),
+                                    )
+                                } else {
+                                    LinearProgressIndicator(Modifier.fillMaxWidth())
+                                }
+                                Spacer(Modifier.height(8.dp))
+                                val pct = if (p.total > 0) " ${p.done * 100 / p.total}%" else ""
+                                Text(
+                                    "${fmtSize(p.done)}" + (if (p.total > 0) " / ${fmtSize(p.total)}" else "") + pct +
+                                        "  ·  ${fmtSize(p.speedBps)}/s  ·  ${if (p.threads > 0) "${p.threads} 线程" else "收尾中"}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        if (!p.finished) ChunkDownloader.cancel()
+                        dlProgress = null
+                    }) { Text(if (finishedOk) "关闭" else if (p.error != null) "关闭" else "取消下载") }
+                },
+            )
+        }
+
         // ---------- 菜单 ----------
         if (menuOpen) {
             ModalBottomSheet(onDismissRequest = { menuOpen = false }) {
@@ -224,4 +316,12 @@ private fun IconBtn(icon: androidx.compose.ui.graphics.vector.ImageVector, desc:
     IconButton(onClick = onClick, enabled = enabled, modifier = Modifier.size(52.dp)) {
         Icon(icon, desc, modifier = Modifier.size(28.dp))
     }
+}
+
+/** 字节数格式化：B / KB / MB / GB */
+internal fun fmtSize(bytes: Long): String = when {
+    bytes >= 1L shl 30 -> "%.2f GB".format(bytes.toDouble() / (1L shl 30))
+    bytes >= 1L shl 20 -> "%.1f MB".format(bytes.toDouble() / (1L shl 20))
+    bytes >= 1L shl 10 -> "%.1f KB".format(bytes.toDouble() / (1L shl 10))
+    else -> "$bytes B"
 }

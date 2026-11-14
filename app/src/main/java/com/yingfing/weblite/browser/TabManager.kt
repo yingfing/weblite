@@ -16,6 +16,23 @@ class Tab(val id: Int) {
     var web: WebView? = null
     var pendingUrl: String = ""
 
+    companion object {
+        /** UI 层注册的下载回调（整个 App 一个即可） */
+        @Volatile var onDownload: ((com.yingfing.weblite.download.ChunkDownloader.Request) -> Unit)? = null
+
+        /** 从 Content-Disposition 或 URL 推断文件名 */
+        fun downloadFileName(url: String, contentDisposition: String?): String {
+            contentDisposition?.let {
+                Regex("filename\\*?=(?:UTF-8''|\")?([^\";]+)").find(it)?.groupValues?.get(1)?.let { n ->
+                    return java.net.URLDecoder.decode(n, "UTF-8")
+                }
+            }
+            val path = url.substringBefore('#').substringBefore('?')
+            val last = path.substringAfterLast('/')
+            return if (last.contains('.') && last.isNotBlank()) java.net.URLDecoder.decode(last, "UTF-8") else "download.bin"
+        }
+    }
+
     val url = MutableStateFlow("")
     val title = MutableStateFlow("")
     val progress = MutableStateFlow(-1)   // -1 = 空闲
@@ -38,6 +55,17 @@ class Tab(val id: Int) {
         // target="_blank" 链接：不开多窗口会被 WebView 静默吞掉（点击无反应），必须开启并接管 onCreateWindow
         settings.setSupportMultipleWindows(true)
         settings.javaScriptCanOpenWindowsAutomatically = true
+
+        // 下载拦截 → 交给 UI 层弹确认框（onDownload 由 BrowserScreen 注册）
+        setDownloadListener { url, _, contentDisposition, mimeType, contentLength ->
+            val name = downloadFileName(url, contentDisposition)
+            com.yingfing.weblite.util.DebugLog.i("下载请求 $url（${contentLength}字节, $mimeType）")
+            onDownload?.invoke(
+                com.yingfing.weblite.download.ChunkDownloader.Request(
+                    url = url, suggestedName = name, mimeType = mimeType, contentLength = contentLength
+                )
+            )
+        }
 
         webViewClient = object : WebViewClient() {
             // API 24+ 走这个重载
