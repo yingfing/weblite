@@ -78,4 +78,9 @@ class Settings(context: Context) {
     var githubAccelerate: Boolean
         get() = p.getBoolean("github_accelerate", true)
         set(v) = p.edit().putBoolean("github_accelerate", v).apply()
+
+    /** 桌面模式（UA 切换），持久化避免 UI 与实际 UA 错位 */
+    var desktopMode: Boolean
+        get() = p.getBoolean("desktop_mode", false)
+        set(v) = p.edit().putBoolean("desktop_mode", v).apply()
 }

@@ -45,7 +45,7 @@ fun BrowserScreen(
     var editing by remember { mutableStateOf(false) }
     var showTabs by remember { mutableStateOf(false) }
     var menuOpen by remember { mutableStateOf(false) }
-    var desktopMode by remember { mutableStateOf(false) }
+    var desktopMode by remember { mutableStateOf(WebLiteApp.settings.desktopMode) }
 
     // ---------- 下载：确认框 + 进度框（TV 无通知栏，进度在 App 内展示） ----------
     var pendingDl by remember { mutableStateOf<ChunkDownloader.Request?>(null) }
@@ -238,11 +238,20 @@ fun BrowserScreen(
             ModalBottomSheet(onDismissRequest = { menuOpen = false }) {
                 Column(Modifier.padding(bottom = 24.dp)) {
                     ListItem(headlineContent = { Text(if (desktopMode) "桌面模式：开" else "桌面模式：关") },
+                        supportingContent = { Text("切换后自动重载当前页") },
                         leadingContent = { Icon(Icons.Filled.DesktopWindows, null) },
                         modifier = Modifier.clickable {
                             desktopMode = !desktopMode
+                            WebLiteApp.settings.desktopMode = desktopMode
                             tab.web?.settings?.userAgentString =
-                                if (desktopMode) "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120 Safari/537.36" else null
+                                if (desktopMode) Tab.DESKTOP_UA else null
+                            // UA 切换必须重载才生效，并给用户明确提示
+                            tab.reload()
+                            android.widget.Toast.makeText(
+                                context,
+                                if (desktopMode) "桌面模式：开，页面已重载" else "桌面模式：关，页面已重载",
+                                android.widget.Toast.LENGTH_SHORT,
+                            ).show()
                         })
                     ListItem(headlineContent = { Text("收藏此页") }, leadingContent = { Icon(Icons.Filled.Star, null) },
                         modifier = Modifier.clickable {

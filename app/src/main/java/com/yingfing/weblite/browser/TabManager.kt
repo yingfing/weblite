@@ -17,6 +17,8 @@ class Tab(val id: Int) {
     var pendingUrl: String = ""
 
     companion object {
+        const val DESKTOP_UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120 Safari/537.36"
+
         /** UI 层注册的下载回调（整个 App 一个即可） */
         @Volatile var onDownload: ((com.yingfing.weblite.download.ChunkDownloader.Request) -> Unit)? = null
 
@@ -48,10 +50,15 @@ class Tab(val id: Int) {
         settings.domStorageEnabled = true
         settings.builtInZoomControls = true
         settings.displayZoomControls = false
+        settings.setSupportZoom(true)
         settings.loadWithOverviewMode = true
         settings.useWideViewPort = true
         settings.mediaPlaybackRequiresUserGesture = false
         settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+        // 桌面模式持久化：建页时即应用 UA，避免 UI 状态与实际 UA 错位
+        if (com.yingfing.weblite.WebLiteApp.settings.desktopMode) {
+            settings.userAgentString = DESKTOP_UA
+        }
         // target="_blank" 链接：不开多窗口会被 WebView 静默吞掉（点击无反应），必须开启并接管 onCreateWindow
         settings.setSupportMultipleWindows(true)
         settings.javaScriptCanOpenWindowsAutomatically = true
