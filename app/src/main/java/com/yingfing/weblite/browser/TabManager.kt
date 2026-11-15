@@ -19,6 +19,9 @@ class Tab(val id: Int) {
     companion object {
         const val DESKTOP_UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120 Safari/537.36"
 
+        /** 只有桌面版式的站点（无手机版）：自动按桌面渲染 + 整页缩放适配 */
+        private val DESKTOP_ONLY_HOSTS = listOf("bing.com")
+
         /** UI 层注册的下载回调（整个 App 一个即可） */
         @Volatile var onDownload: ((com.yingfing.weblite.download.ChunkDownloader.Request) -> Unit)? = null
 
@@ -84,21 +87,33 @@ class Tab(val id: Int) {
             override fun onPageStarted(view: WebView, u: String, favicon: Bitmap?) {
                 com.yingfing.weblite.util.DebugLog.i("[T${this@Tab.id}] 开始加载 $u")
                 this@Tab.url.value = u
+                // 桌面-only 站点（bing 等无手机版式）：自动切桌面 UA 重载，
+                // 配合 onPageFinished 的 viewport 980 注入，打开即整页缩放的桌面版
+                val host = android.net.Uri.parse(u).host ?: ""
+                if (DESKTOP_ONLY_HOSTS.any { host == it || host.endsWith(".$it") } &&
+                    view.settings.userAgentString != DESKTOP_UA
+                ) {
+                    com.yingfing.weblite.util.DebugLog.i("[T${this@Tab.id}] 桌面版式站点 $host → 自动桌面渲染")
+                    view.settings.userAgentString = DESKTOP_UA
+                    view.post { view.reload() }
+                    return
+                }
                 onLoad(this@Tab)
             }
             override fun onPageFinished(view: WebView, u: String) {
                 this@Tab.title.value = view.title ?: u
                 this@Tab.url.value = u
                 refreshNav(view)
-                // 桌面模式：覆盖 viewport 为 980px。桌面站点自带 width=device-width，
+                // 桌面版式页面：覆盖 viewport 为 980px。桌面站点自带 width=device-width，
                 // 桌面布局会被硬塞进手机屏宽导致错乱（GitHub 挤成窄条/Bing 只剩背景图）；
-                // 固定 980 布局宽 + overview 缩放 = 正常的"整页缩小的桌面版"
+                // 固定布局宽 + overview 缩放 = 正常的"整页缩小的桌面版"。
+                // 注意不能写死 initial-scale，交给 WebView 按屏宽自动算
                 if (view.settings.userAgentString == DESKTOP_UA) {
                     view.evaluateJavascript(
                         "(function(){var m=document.querySelector('meta[name=viewport]');" +
-                        "if(m){m.setAttribute('content','width=980,initial-scale=0.1');}" +
+                        "if(m){m.setAttribute('content','width=980');}" +
                         "else{m=document.createElement('meta');m.name='viewport';" +
-                        "m.content='width=980,initial-scale=0.1';document.head.appendChild(m);}})();", null
+                        "m.content='width=980';document.head.appendChild(m);}})();", null
                     )
                 }
                 com.yingfing.weblite.util.DebugLog.i("[T${this@Tab.id}] 加载完成 $u（标题=${view.title}）")
