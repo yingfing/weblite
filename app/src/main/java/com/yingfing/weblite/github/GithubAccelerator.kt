@@ -137,9 +137,9 @@ object GithubAccelerator {
 
     init {
         // 启动时恢复持久化池
-        runCatching {
-            val f = poolFile ?: return
-            if (!f.exists()) return
+        runCatching restore@{
+            val f = poolFile ?: return@restore
+            if (!f.exists()) return@restore
             val root = JSONObject(f.readText())
             val now = System.currentTimeMillis()
             for (key in root.keys()) {
