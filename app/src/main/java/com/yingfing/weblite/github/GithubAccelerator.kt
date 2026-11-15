@@ -6,6 +6,7 @@ import android.util.Log
 import com.yingfing.weblite.util.DebugLog
 import org.json.JSONObject
 import java.io.File
+import java.io.IOException
 import java.net.InetSocketAddress
 import java.net.Socket
 import java.net.URL
@@ -112,18 +113,49 @@ object GithubAccelerator {
         cost
     }.getOrDefault(Long.MAX_VALUE)
 
-    /** DoH（阿里公共 DNS）解析，绕过本地 DNS 污染 */
-    private fun resolveViaDoh(host: String): List<String> = runCatching {
-        val c = URL("https://dns.alidns.com/resolve?name=$host&type=A").openConnection() as java.net.HttpURLConnection
-        c.connectTimeout = 5000; c.readTimeout = 5000
-        c.setRequestProperty("Accept", "application/dns-json")
-        val body = c.inputStream.bufferedReader().use { it.readText() }
-        val arr = JSONObject(body).optJSONArray("Answer") ?: return emptyList()
-        (0 until arr.length()).mapNotNull { i ->
-            val a = arr.getJSONObject(i)
-            if (a.optInt("type") == 1) a.optString("data").takeIf { it.isNotBlank() } else null
+    /**
+     * DoH 解析链（仅 GitHub 域名使用，绕过本地 DNS 污染）：
+     * Google（8.8.8.8/8.8.4.4，dns.google anycast）→ Cloudflare（1.1.1.1）→ 阿里云兜底。
+     * 按顺序尝试，首个成功者胜出并记住，下次优先用它。
+     */
+    private val dohEndpoints = listOf(
+        "https://dns.google/resolve?name=%s&type=A" to "Google DoH(8.8.8.8/8.8.4.4)",
+        "https://cloudflare-dns.com/dns-query?name=%s&type=A" to "Cloudflare DoH(1.1.1.1)",
+        "https://dns.alidns.com/resolve?name=%s&type=A" to "阿里云 DoH(兜底)",
+    )
+    @Volatile private var preferredDohIndex: Int = 0
+
+    private fun resolveViaDoh(host: String): List<String> {
+        val order = buildList {
+            add(preferredDohIndex)
+            (dohEndpoints.indices).filter { it != preferredDohIndex }.forEach { add(it) }
         }
-    }.onFailure { Log.w("WebLite", "DoH fail $host: ${it.message}") }.getOrDefault(emptyList())
+        for (idx in order) {
+            val (template, label) = dohEndpoints[idx]
+            val result = runCatching {
+                val c = URL(template.format(host)).openConnection() as java.net.HttpURLConnection
+                c.connectTimeout = 4000; c.readTimeout = 4000
+                c.setRequestProperty("Accept", "application/dns-json")
+                val body = c.inputStream.bufferedReader().use { it.readText() }
+                val arr = JSONObject(body).optJSONArray("Answer") ?: throw IOException("无 Answer")
+                (0 until arr.length()).mapNotNull { i ->
+                    val a = arr.getJSONObject(i)
+                    if (a.optInt("type") == 1) a.optString("data").takeIf { it.isNotBlank() } else null
+                }.ifEmpty { throw IOException("空结果") }
+            }.getOrNull()
+            if (!result.isNullOrEmpty()) {
+                if (preferredDohIndex != idx) {
+                    preferredDohIndex = idx
+                    DebugLog.i("DoH 解析源切换 → $label")
+                }
+                DebugLog.i("DoH[$label] $host → $result")
+                return result
+            }
+            DebugLog.w("DoH[$label] $host 失败，尝试下一个")
+        }
+        Log.w("WebLite", "DoH 全链路失败 $host")
+        return emptyList()
+    }
 
     /** 持久化优选池 */
     private fun persist(host: String, ips: List<String>, testedAt: Long) {
