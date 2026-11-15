@@ -9,7 +9,7 @@ plugins {
 // 本地无 git / CI 环境变量兜底，避免再出现 tag 升了应用版本没升的情况
 val releaseTag: String = runCatching {
     val fromGit = ProcessBuilder("git", "describe", "--tags", "--abbrev=0")
-        .redirectErrorStream(true).start().inputStream.readText().trim().removePrefix("v")
+        .redirectErrorStream(true).start().inputStream.readBytes().toString(Charsets.UTF_8).trim().removePrefix("v")
     if (fromGit.matches(Regex("\\d+\\.\\d+\\.\\d+.*"))) fromGit else null
 }.getOrNull()
     ?: System.getenv("GITHUB_REF_NAME")?.removePrefix("v")?.takeIf { it.matches(Regex("\\d+\\.\\d+\\.\\d+.*")) }
