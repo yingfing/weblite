@@ -55,10 +55,7 @@ class Tab(val id: Int) {
         settings.useWideViewPort = true
         settings.mediaPlaybackRequiresUserGesture = false
         settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
-        // 桌面模式持久化：建页时即应用 UA，避免 UI 状态与实际 UA 错位
-        if (com.yingfing.weblite.WebLiteApp.settings.desktopMode) {
-            settings.userAgentString = DESKTOP_UA
-        }
+        // 桌面模式为会话级开关：新建标签页一律手机模式，避免上次切换的状态残留导致渲染错乱
         // target="_blank" 链接：不开多窗口会被 WebView 静默吞掉（点击无反应），必须开启并接管 onCreateWindow
         settings.setSupportMultipleWindows(true)
         settings.javaScriptCanOpenWindowsAutomatically = true
@@ -93,6 +90,17 @@ class Tab(val id: Int) {
                 this@Tab.title.value = view.title ?: u
                 this@Tab.url.value = u
                 refreshNav(view)
+                // 桌面模式：覆盖 viewport 为 980px。桌面站点自带 width=device-width，
+                // 桌面布局会被硬塞进手机屏宽导致错乱（GitHub 挤成窄条/Bing 只剩背景图）；
+                // 固定 980 布局宽 + overview 缩放 = 正常的"整页缩小的桌面版"
+                if (view.settings.userAgentString == DESKTOP_UA) {
+                    view.evaluateJavascript(
+                        "(function(){var m=document.querySelector('meta[name=viewport]');" +
+                        "if(m){m.setAttribute('content','width=980,initial-scale=0.1');}" +
+                        "else{m=document.createElement('meta');m.name='viewport';" +
+                        "m.content='width=980,initial-scale=0.1';document.head.appendChild(m);}})();", null
+                    )
+                }
                 com.yingfing.weblite.util.DebugLog.i("[T${this@Tab.id}] 加载完成 $u（标题=${view.title}）")
                 onLoad(this@Tab)
             }

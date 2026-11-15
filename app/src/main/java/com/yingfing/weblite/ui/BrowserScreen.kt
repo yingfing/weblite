@@ -45,7 +45,7 @@ fun BrowserScreen(
     var editing by remember { mutableStateOf(false) }
     var showTabs by remember { mutableStateOf(false) }
     var menuOpen by remember { mutableStateOf(false) }
-    var desktopMode by remember { mutableStateOf(WebLiteApp.settings.desktopMode) }
+    var desktopMode by remember { mutableStateOf(false) }   // 会话级，不持久化
 
     // ---------- 下载：确认框 + 进度框（TV 无通知栏，进度在 App 内展示） ----------
     var pendingDl by remember { mutableStateOf<ChunkDownloader.Request?>(null) }
@@ -242,7 +242,6 @@ fun BrowserScreen(
                         leadingContent = { Icon(Icons.Filled.DesktopWindows, null) },
                         modifier = Modifier.clickable {
                             desktopMode = !desktopMode
-                            WebLiteApp.settings.desktopMode = desktopMode
                             tab.web?.settings?.userAgentString =
                                 if (desktopMode) Tab.DESKTOP_UA else null
                             // UA 切换必须重载才生效，并给用户明确提示
