@@ -26,13 +26,13 @@ object GithubHttp {
         val stream: InputStream,
         private val socket: SSLSocket?,          // 直连模式持有，close 时关 socket
         private val conn: HttpURLConnection?,    // URL 模式持有
-    ) {
+    ) : java.io.Closeable {
         fun contentLength(): Long = headers["content-length"]?.toLongOrNull() ?: -1L
         fun contentRangeTotal(): Long =
             headers["content-range"]?.substringAfter('/')?.toLongOrNull() ?: -1L
         fun location(): String? = headers["location"]
 
-        fun close() {
+        override fun close() {
             runCatching { stream.close() }
             runCatching { socket?.close() }
             conn?.disconnect()
