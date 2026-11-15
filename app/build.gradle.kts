@@ -5,16 +5,31 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
+// 版本号自动跟随 git tag（v1.4.2 → versionName 1.4.2，versionCode 10402）
+// 本地无 git / CI 环境变量兜底，避免再出现 tag 升了应用版本没升的情况
+val releaseTag: String = runCatching {
+    val fromGit = ProcessBuilder("git", "describe", "--tags", "--abbrev=0")
+        .redirectErrorStream(true).start().inputStream.readText().trim().removePrefix("v")
+    if (fromGit.matches(Regex("\\d+\\.\\d+\\.\\d+.*"))) fromGit else null
+}.getOrNull()
+    ?: System.getenv("GITHUB_REF_NAME")?.removePrefix("v")?.takeIf { it.matches(Regex("\\d+\\.\\d+\\.\\d+.*")) }
+    ?: "0.1.0"
+
+val releaseVersionCode: Int = releaseTag.split(".").let { p ->
+    (p.getOrNull(0)?.toIntOrNull() ?: 0) * 10000 + (p.getOrNull(1)?.toIntOrNull() ?: 0) * 100 + (p.getOrNull(2)?.takeWhile { it.isDigit() }?.toIntOrNull() ?: 0)
+}
+
 android {
     namespace = "com.yingfing.weblite"
+
     compileSdk = 35
 
     defaultConfig {
         applicationId = "com.yingfing.weblite"
         minSdk = 21          // 放宽到 Android 5.0+，兼容老设备（如 8H57_H5 TV 盒）
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = releaseVersionCode
+        versionName = releaseTag
     }
 
     buildTypes {
