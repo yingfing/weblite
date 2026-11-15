@@ -94,6 +94,18 @@ class Tab(val id: Int) {
                     com.yingfing.weblite.util.DebugLog.e("[T${this@Tab.id}] 加载失败 ${request.url} code=${error.errorCode} ${error.description}")
                 }
             }
+            // GitHub 资源类请求重定向镜像加速（页面本体不动，设置开关控制）
+            override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): android.webkit.WebResourceResponse? {
+                val u = request.url.toString()
+                if (!com.yingfing.weblite.WebLiteApp.settings.githubAccelerate) return null
+                if (!com.yingfing.weblite.github.GithubAccelerator.isAcceleratable(u)) return null
+                val mirror = com.yingfing.weblite.github.GithubAccelerator.mirrorUrl(u) ?: return null
+                com.yingfing.weblite.util.DebugLog.i("[T${this@Tab.id}] GitHub 资源加速 → $mirror")
+                return android.webkit.WebResourceResponse(
+                    "text/plain", "utf-8", 302, "Moved Temporarily",
+                    mapOf("Location" to mirror), java.io.ByteArrayInputStream(ByteArray(0))
+                )
+            }
         }
         webChromeClient = object : WebChromeClient() {
             // 接管 target="_blank" / window.open：TV 单窗口场景直接在本页加载目标地址

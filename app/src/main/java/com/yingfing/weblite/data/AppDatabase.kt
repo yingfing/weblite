@@ -73,4 +73,9 @@ class Settings(context: Context) {
     var debugLog: Boolean
         get() = p.getBoolean("debug_log", true)
         set(v) = p.edit().putBoolean("debug_log", v).apply()
+
+    /** GitHub 加速：IP 优选直连 + 资源镜像重定向，默认开 */
+    var githubAccelerate: Boolean
+        get() = p.getBoolean("github_accelerate", true)
+        set(v) = p.edit().putBoolean("github_accelerate", v).apply()
 }

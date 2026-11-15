@@ -115,6 +115,7 @@ fun SettingsScreen(onBack: () -> Unit) {
     var homepage by remember { mutableStateOf(settings.homepage) }
     var fancy by remember { mutableStateOf(settings.fancyEffects) }
     var debugLog by remember { mutableStateOf(settings.debugLog) }
+    var githubAcc by remember { mutableStateOf(settings.githubAccelerate) }
 
     PageScaffold("设置", onBack) {
         LazyColumn(Modifier.fillMaxSize()) {
@@ -189,6 +190,18 @@ fun SettingsScreen(onBack: () -> Unit) {
                             debugLog = it; settings.debugLog = it
                             com.yingfing.weblite.util.DebugLog.enabled = it
                             com.yingfing.weblite.util.DebugLog.i("调试日志 ${if (it) "已开启" else "已关闭"}")
+                        })
+                    },
+                )
+            }
+            item {
+                HorizontalDivider()
+                ListItem(
+                    headlineContent = { Text("GitHub 加速") },
+                    supportingContent = { Text("IP 优选直连 + 下载多源分片 + 资源镜像重定向（参考 fastgithub-cli 的优选策略）") },
+                    trailingContent = {
+                        Switch(checked = githubAcc, onCheckedChange = {
+                            githubAcc = it; settings.githubAccelerate = it
                         })
                     },
                 )

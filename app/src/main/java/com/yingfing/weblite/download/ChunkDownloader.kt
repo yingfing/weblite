@@ -11,13 +11,12 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
 import java.io.RandomAccessFile
-import java.net.HttpURLConnection
-import java.net.URL
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 
 /**
  * 类 aria2 分段下载器（多线程 Range 分片 + 自动降级单线程）。
+ * GitHub 链接自动走「IP 优选直连 → 镜像 → 普通 DNS」三级加速通道（GithubHttp）。
  * TV 盒子无通知栏，进度通过回调交给 UI 对话框展示。
  */
 object ChunkDownloader {
@@ -56,7 +55,7 @@ object ChunkDownloader {
             try {
                 doDownload(req, threads, onProgress)
             } catch (t: Throwable) {
-                DebugLog.e("下载失败 $req.url", t)
+                DebugLog.e("下载失败 ${req.url}", t)
                 onProgress(Progress(0, -1, 0, 0, finished = true, error = t.message ?: "下载失败"))
                 null
             } finally {
@@ -76,10 +75,10 @@ object ChunkDownloader {
         val part = File(dir, "$name.part")
         DebugLog.i("下载开始 ${req.url} → ${part.absolutePath}")
 
-        // 探测：Content-Length + Range 支持
+        // 探测：Content-Length + Range 支持（GitHub 链接内部走 IP 优选）
         val probe = probe(req.url)
-        val total = probe.contentLength
-        val rangeOk = probe.acceptRanges && total > 0
+        val total = probe.first
+        val rangeOk = probe.second && total > 0
         val n = if (rangeOk) threads else 1
         DebugLog.i("下载探测 total=$total rangeOk=$rangeOk threads=$n")
 
@@ -92,9 +91,9 @@ object ChunkDownloader {
                 val jobs = mutableListOf<Job>()
                 for (i in 0 until n) {
                     val from = i.toLong() * step
-                    val to = if (i == n - 1) total - 1 else (i + 1) * step - 1
+                    val expected = if (i == n - 1) total - from else step
                     jobs += launch(Dispatchers.IO) {
-                        downloadRange(req.url, from, to, part, done, i)
+                        downloadRange(req.url, from, expected, part, done, i)
                     }
                 }
                 // 进度上报协程
@@ -136,50 +135,32 @@ object ChunkDownloader {
         return target.absolutePath
     }
 
-    private class Probe(val contentLength: Long, val acceptRanges: Boolean)
-
-    private fun probe(url: String): Probe = runCatching {
-        val c = (URL(url).openConnection() as HttpURLConnection).apply {
-            connectTimeout = 15000; readTimeout = 15000
-            instanceFollowRedirects = true
-            requestMethod = "HEAD"
+    /** 探测长度与 Range 支持（返回 total, rangeOk） */
+    private fun probe(url: String): Pair<Long, Boolean> = runCatching {
+        GithubHttp.open(url, 0L).use { resp ->
+            if (resp.code == 206) {
+                val total = resp.contentRangeTotal()
+                if (total > 0) return@use total to true
+            }
+            // 200 = 服务器不支持 Range（返回了整个文件）
+            resp.contentLength() to false
         }
-        val len = c.contentLengthLong
-        val ranges = c.getHeaderField("Accept-Ranges")?.equals("bytes", true) == true
-        c.disconnect()
-        if (len > 0) return@runCatching Probe(len, ranges)
-        // HEAD 不给长度时，用 Range: 0-0 探测
-        val g = (URL(url).openConnection() as HttpURLConnection).apply {
-            connectTimeout = 15000; readTimeout = 15000
-            setRequestProperty("Range", "bytes=0-0")
-        }
-        val code = g.responseCode
-        val cr = g.getHeaderField("Content-Range") // bytes 0-0/12345
-        val total = cr?.substringAfter('/')?.toLongOrNull() ?: -1L
-        g.disconnect()
-        Probe(total, code == 206 && total > 0)
-    }.getOrDefault(Probe(-1, false))
+    }.getOrDefault((-1L to false))
 
-    /** 单个 Range 分片，失败自动重试 */
-    private fun downloadRange(url: String, from: Long, to: Long, file: File, done: AtomicLong, idx: Int) {
-        val expected = to - from + 1
+    /** 单个 Range 分片：从 from 开始读 expected 字节，失败自动重试 */
+    private fun downloadRange(url: String, from: Long, expected: Long, file: File, done: AtomicLong, idx: Int) {
         for (attempt in 1..3) {
             if (cancelled.get()) return
             try {
-                val c = (URL(url).openConnection() as HttpURLConnection).apply {
-                    connectTimeout = 15000; readTimeout = 30000
-                    instanceFollowRedirects = true
-                    setRequestProperty("Range", "bytes=$from-$to")
-                }
-                if (c.responseCode != 206) throw IOException("分片 $idx 响应码 ${c.responseCode}")
-                c.inputStream.use { input ->
+                GithubHttp.open(url, from).use { resp ->
+                    if (resp.code != 206) throw IOException("分片 $idx 响应码 ${resp.code}（期望 206）")
                     RandomAccessFile(file, "rw").use { raf ->
                         raf.seek(from)
                         val buf = ByteArray(64 * 1024)
                         var written = 0L
-                        while (true) {
+                        while (written < expected) {
                             if (cancelled.get()) return
-                            val r = input.read(buf)
+                            val r = resp.stream.read(buf, 0, minOf(buf.size.toLong(), expected - written).toInt())
                             if (r < 0) break
                             raf.write(buf, 0, r)
                             written += r; done.addAndGet(r.toLong())
@@ -196,25 +177,20 @@ object ChunkDownloader {
         }
     }
 
-    /** 不支持 Range / 长度未知的单线程下载 */
+    /** 不支持 Range / 长度未知的单线程断点续传下载 */
     private fun downloadStream(url: String, file: File, done: AtomicLong) {
         var attempt = 0
         var offset = done.get()
         while (attempt < 3 && !cancelled.get()) {
             attempt++
             try {
-                val c = (URL(url).openConnection() as HttpURLConnection).apply {
-                    connectTimeout = 15000; readTimeout = 30000
-                    instanceFollowRedirects = true
-                    if (offset > 0) setRequestProperty("Range", "bytes=$offset-")
-                }
-                c.inputStream.use { input ->
+                GithubHttp.open(url, if (offset > 0) offset else null).use { resp ->
                     RandomAccessFile(file, "rw").use { raf ->
                         raf.seek(offset)
                         val buf = ByteArray(64 * 1024)
                         while (true) {
                             if (cancelled.get()) return
-                            val r = input.read(buf)
+                            val r = resp.stream.read(buf)
                             if (r < 0) break
                             raf.write(buf, 0, r)
                             offset += r; done.addAndGet(r.toLong())

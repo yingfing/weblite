@@ -38,13 +38,25 @@ fun App(startUrl: String) {
     val route = backStack?.destination?.route
     val context = LocalContext.current
 
+    // 外部链接唤起时先进入迷你浏览器（类 Custom Tabs），展开键切换到完整浏览器
+    var lightMode by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(startUrl.isNotBlank()) }
+
     // 当前是否在浏览器页（返回键交给 WebView 处理）
-    val showBrowser = route == "browser"
+    val showBrowser = !lightMode && route == "browser"
 
     androidx.activity.compose.BackHandler(enabled = showBrowser) {
         // 返回键：先退网页历史，退无可退才退出应用
         val tab = TabManager.active.value
         if (tab?.web?.canGoBack() == true) tab.back() else (context as? android.app.Activity)?.finish()
+    }
+
+    if (lightMode) {
+        LightBrowserScreen(
+            startUrl = startUrl,
+            onExpand = { lightMode = false },
+            onClose = { (context as? android.app.Activity)?.finish() },
+        )
+        return
     }
 
     NavHost(nav, startDestination = "browser", Modifier.padding()) {
